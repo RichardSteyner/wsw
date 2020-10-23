@@ -1,0 +1,18 @@
+<aura:component controller="NetsuiteMethods" implements="flexipage:availableForAllPageTypes,force:hasRecordId,force:lightningQuickAction" >
+    <aura:attribute name="messageError" type="String" />
+    <aura:attribute name="messageErrorBoolean" type="Boolean" />
+    <aura:attribute name="recordId" type="String" />
+    
+    <aura:handler name="init" value="{!this}" action="{!c.init}" />
+    
+    <aura:if isTrue="{!v.messageErrorBoolean}">
+        <ui:message title="Error" severity="error" closable="false">
+            {!v.messageError}
+        </ui:message>
+    </aura:if>
+    <aura:if isTrue="{!!v.messageErrorBoolean}">
+        <ui:message title="Information" severity="info" closable="false">
+            {!v.messageError}
+        </ui:message>
+    </aura:if>
+</aura:component>

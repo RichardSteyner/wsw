@@ -5,6 +5,8 @@ global class NetsuitePostOpportunitiesBatch implements Database.Batchable<Opport
     
     global NetsuitePostOpportunitiesBatch(String startDate){
         this.startDate = startDate;
+        
+        for(NetsuiteOpp__c nl : NetsuiteOpp__c.getall().values()) customSettingMap.put(nl.Name.trim().toLowerCase(),nl);
     }
     
     global List<Opportunity> start(Database.BatchableContext BC){

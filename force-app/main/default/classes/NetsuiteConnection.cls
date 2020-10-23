@@ -176,6 +176,56 @@ public class NetsuiteConnection {
         return response;
     }*/
     
+    public static HttpResponse postNetsuiteSoap(String action, String bodyXML){
+        Http http = new Http();
+        HTTPResponse response;
+        HttpRequest request = new HttpRequest();
+        request.setEndpoint(authentication.Base_URL_Soap__c);
+        request.setMethod('POST');
+    	String timestamp = String.valueOf(DateTime.now().getTime() / 1000);
+        String nonce = generateRandomString(10);
+        String baseString = authentication.Account_Id__c + '&' + authentication.Consumer_Key__c + '&' + authentication.Token_Id__c + '&' + nonce + '&' + timestamp; 
+        Blob signature = Crypto.generateMac('HmacSHA256', Blob.valueOf(baseString), Blob.valueOf(authentication.Consumer_Secret__c + '&' + authentication.Token_Secret__c));
+        String body = '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:platformMsgs="urn:messages_2020_1.platform.webservices.netsuite.com" xmlns:platformCore="urn:core_2020_1.platform.webservices.netsuite.com">' + 
+            				'<soapenv:Header>' + 
+            				'   <platformMsgs:tokenPassport>' +
+            				'		<platformCore:account>' + authentication.Account_Id__c + '</platformCore:account>' + 
+            				'		<platformCore:consumerKey>' + authentication.Consumer_Key__c + '</platformCore:consumerKey>' + 
+            				'		<platformCore:token>' + authentication.Token_Id__c + '</platformCore:token>' + 
+            				'		<platformCore:nonce>' + nonce + '</platformCore:nonce>' + 
+            				'		<platformCore:timestamp>' + timestamp + '</platformCore:timestamp>' + 
+            				'		<platformCore:signature algorithm="HMAC-SHA256">' + EncodingUtil.base64Encode(signature) + '</platformCore:signature>' + 
+            				'   </platformMsgs:tokenPassport>' + 
+            				//'	<preferences>' +
+         					//'		<runServerSuiteScriptAndTriggerWorkflows>false</runServerSuiteScriptAndTriggerWorkflows>' +
+      						//'</preferences>' +
+            				'</soapenv:Header>' + 
+            				'<soapenv:Body>' + 
+            					bodyXML + 
+            				'</soapenv:Body>' + 
+            			'</soapenv:Envelope>';
+        
+        request.setBody(body);
+        request.setHeader('Content-type','text/xml');
+        request.setHeader('SOAPAction',action);
+        request.setTimeout(120000);
+        try{
+            if(!Test.isRunningTest()) response = http.send(request);
+            else {
+                response = new HTTPResponse();
+                response.setStatusCode(200);
+                response.setBody('<success>true</success>');
+            }
+        }
+        catch(Exception e){
+            response = new HttpResponse();
+            response.setStatusCode(500);
+            System.debug('###NetsuiteConnection.updateNetsuiteObjectSoap - Callout Exception: '+e.getMessage());
+        }
+        System.debug('updateNetsuiteObjectSoap-Response Status Code: ' + response.getStatusCode() + ', Response Body: ' + (String.isNotEmpty(response.getBody()) ? response.getBody().left(255) : ''));
+        System.debug(response.getBody().substringBetween('<faultstring>', '</faultstring>'));
+        return response;
+    }
     public static HTTPResponse updateNetsuiteObjectSoap(String bodyXML){
         HttpRequest request = new HttpRequest();
         request.setEndpoint(authentication.Base_URL_Soap__c);
