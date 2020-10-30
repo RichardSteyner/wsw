@@ -52,9 +52,10 @@ public class NetsuiteConnection {
         catch(Exception e){
             response = new HTTPResponse();
             response.setStatusCode(500);
-            //System.debug('###NetsuiteConnection.getNetsuiteObject - Callout Exception: '+e.getMessage());
+            System.debug('###NetsuiteConnection.getNetsuiteObject - Callout Exception: '+e.getMessage());
         }
         //System.debug('getNetsuiteObject(netsuiteObject = ' + netsuiteObject + ', filters = ' +  filters + ') => Response Status Code: ' + response.getStatusCode() + ', Response Body: ' + (String.isNotEmpty(response.getBody()) ? response.getBody().left(255) : ''));
+        system.debug(response.getBody());
         return response.getStatusCode() == 200 /*&& ( response.getBody().contains('"status_code":200') || response.getBody().contains('"status_code": 200')  || response.getBody().contains('"status_code" : 200') || response.getBody().contains('"status_code" :200') )*/ ? response.getBody() : /*'{"status":{"status_code":200,"page":1,"total_pages":0},"result":[]}'*/ null;
     }
     

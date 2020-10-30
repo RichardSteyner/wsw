@@ -97,6 +97,87 @@ public class NetsuiteMethods {
         return 'Ok';
     }
     
+    @AuraEnabled
+    public static String getCustomer(Id accId){
+        Account accountRecord = [SELECT Id, NS_ID__c FROM Account WHERE Id =: accId];
+        String jsonResponse = NetsuiteConnection.getNetsuiteObject('customer/' + accountRecord.NS_ID__c, '');
+        system.debug(jsonResponse);
+        if(jsonResponse!=null){
+            Map<String,String> customSettingMap = new Map<String,String>();
+            for(NetsuiteLead__c nl : NetsuiteLead__c.getall().values()) customSettingMap.put(nl.Name.trim().toLowerCase(),nl.Value__c);
+            
+            Map<String,NetsuiteLead__c> customLeadMap = new Map<String,NetsuiteLead__c>();
+            NetsuiteCustomerParser customer = (NetsuiteCustomerParser) json.deserialize(jsonResponse, NetsuiteCustomerParser.class);
+            if(customer != null){
+                accountRecord.Name=customer.companyName;
+                accountRecord.NumberOfEmployees=customer.custentity_esc_no_of_employees;
+                accountRecord.Taxable__c=customer.taxable;
+                accountRecord.Web_Approved_CB__c=customer.custentity_sc_web_approved;
+                accountRecord.Attention_Address__c=customer.defaultAddress;
+                accountRecord.WS_Prime__c=customer.getWSPrime();
+                accountRecord.Phone=customer.phone;
+                accountRecord.Website=customer.url;
+                accountRecord.Parent_NS_ID__c=customer.getParentId();
+                accountRecord.OZlink_Bill_shipping_to_3rd__c=customer.custentity_ozlink_bill_shipping_to_3rd;
+                accountRecord.OZlink_Billing_shipping_to_recip__c=customer.custentity_ozlink_bill_shipping_to_recip;
+                accountRecord.Ozlink_Website__c=customer.custentity_ozlink_website;
+                accountRecord.Owner_NS_ID__c=customer.getSalesRepId();
+                accountRecord.AccountSource = (customer.getLeadSource() != null ? customer.getLeadSource().subStringAfter('> ') : null);
+                accountRecord.CC_Processor__c = (customer.getCCProcessor() != null ? customer.getCCProcessor().subStringAfter('> ') : null);
+                accountRecord.Price_Level__c = (customer.getPriceLevel() != null ? customer.getPriceLevel().subStringAfter('> ') : null);
+                accountRecord.Netsuite_Status__c = (customer.geEntityStatus() != null ? customer.geEntityStatus().subStringAfter('> ') : null);
+                accountRecord.Industry = (customer.getIndustry() != null ? customer.getIndustry().subStringAfter('> ') : null);
+                accountRecord.Type_of_Customer__c = (customer.getTypeOfCustomer() != null ? customer.getTypeOfCustomer().subStringAfter('> ') : null);
+                if(customer.getLeadSource() != null){
+                    customLeadMap.put(
+                        'leadsource-'+customer.getLeadSource().subStringBetween('<','>').trim().toLowerCase(),
+                        new NetsuiteLead__c(Type__c = 'leadsource', Name = 'LeadSource-'+customer.getLeadSource().subStringBetween('<','>').trim().toLowerCase(), ID__c = customer.getLeadSource().subStringBetween('<','>'),Value__c = customer.getLeadSource().subStringAfter('> ').trim())
+                    );
+                }
+                if(customer.getCCProcessor() != null){
+                    customLeadMap.put(
+                        'ccprocessor-'+customer.getCCProcessor().subStringBetween('<','>').trim().toLowerCase(),
+                        new NetsuiteLead__c(Type__c = 'CCProcessor', Name = 'ccprocessor-'+customer.getCCProcessor().subStringBetween('<','>').trim().toLowerCase(), ID__c = customer.getCCProcessor().subStringBetween('<','>'),Value__c = customer.getCCProcessor().subStringAfter('> ').trim())
+                    );
+                }
+                if(customer.getPriceLevel() != null){
+                    customLeadMap.put(
+                        'pricelevel-'+customer.getPriceLevel().subStringBetween('<','>').trim().toLowerCase(),
+                        new NetsuiteLead__c(Type__c = 'PriceLevel', Name = 'pricelevel-'+customer.getPriceLevel().subStringBetween('<','>').trim().toLowerCase(), ID__c = customer.getPriceLevel().subStringBetween('<','>'),Value__c = customer.getPriceLevel().subStringAfter('> ').trim())
+                    );
+                }
+                if(customer.geEntityStatus() != null){
+                    customLeadMap.put(
+                        'entitystatus-'+customer.geEntityStatus().subStringBetween('<','>').trim().toLowerCase(),
+                        new NetsuiteLead__c(Type__c = 'EntityStatus', Name = 'entitystatus-'+customer.geEntityStatus().subStringBetween('<','>').trim().toLowerCase(), ID__c = customer.geEntityStatus().subStringBetween('<','>'),Value__c = customer.geEntityStatus().subStringAfter('> ').trim())
+                    );
+                }
+                if(customer.getIndustry() != null){
+                    customLeadMap.put(
+                        'industry-'+customer.getIndustry().subStringBetween('<','>').trim().toLowerCase(),
+                        new NetsuiteLead__c(Type__c = 'Industry', Name = 'industry-'+customer.getIndustry().subStringBetween('<','>').trim().toLowerCase(), ID__c = customer.getIndustry().subStringBetween('<','>'),Value__c = customer.getIndustry().subStringAfter('> ').trim())
+                    );
+                }
+                if(customer.getTypeOfCustomer() != null){
+                    customLeadMap.put(
+                        'typeofcustomer-'+customer.getTypeOfCustomer().subStringBetween('<','>').trim().toLowerCase(),
+                        new NetsuiteLead__c(Type__c = 'TypeOfCustomer', Name = 'typeofcustomer-'+customer.getTypeOfCustomer().subStringBetween('<','>').trim().toLowerCase(), ID__c = customer.getTypeOfCustomer().subStringBetween('<','>'),Value__c = customer.getTypeOfCustomer().subStringAfter('> ').trim())
+                    );
+                }
+                
+                //Custom Settings
+                for(String key : customLeadMap.keySet()){
+                    if(customSettingMap.get(key) != null) customLeadMap.remove(key); else customSettingMap.put(key,customLeadMap.get(key).Value__c);
+                }
+                if(!customLeadMap.isEmpty()) insert customLeadMap.values();
+                
+                ApexUtil.isAccountTriggerInvoked = false;
+                update accountRecord;
+            }
+        }
+        return 'Ok';
+    }
+    
     @future(callout=true)
     public static void createEstimate(Set<String> recordIds){
         Map<String,List<NetsuiteOpp__c>> customSettingMap = new Map<String,List<NetsuiteOpp__c>>();
@@ -109,10 +190,13 @@ public class NetsuiteMethods {
         
         List<Opportunity> opportunityList = new List<Opportunity>();
         String orderDetail;
+        String xmlBody;
         for(Opportunity oppRecord : [SELECT Id, Order_Detail__c, Web_Order_Number__c, CloseDate, StageName, Estimate_Date__c, Estimate_Expiration_Date__c, Memo__c, AccountId, Account.NS_ID__c, Email__c, (SELECT Id, Product2.NS_ID__c, Description, Quantity FROM OpportunityLineItems) FROM Opportunity WHERE Id IN: recordIds]){
             if(oppRecord.AccountId != null && oppRecord.Account.NS_ID__c != null){
                 if(oppRecord.OpportunityLineItems != null && !oppRecord.OpportunityLineItems.isEmpty()){
-                    String xmlBody = 
+                    orderDetail = null;
+                    for(NetsuiteOpp__c orderDetailValue : customSettingMap.get('orderdetail')) if(orderDetailValue.Value__c == oppRecord.Order_Detail__c) orderDetail = orderDetailValue.ID__c;
+                    xmlBody = 
                         '<add>' +
                         '	<platformMsgs:record  xsi:type="tranSales:Estimate" xmlns:tranSales="urn:sales_2020_1.transactions.webservices.netsuite.com">' + 
                         '		<tranSales:entity internalId="' + oppRecord.Account.NS_ID__c + '" xmlns:platformCore="urn:core_2020_1.platform.webservices.netsuite.com" />' + 
@@ -205,12 +289,13 @@ public class NetsuiteMethods {
         
         List<Opportunity> opportunityList = new List<Opportunity>();
         String orderDetail;
+        String xmlBody;
         for(Opportunity oppRecord : [SELECT Id, NS_Estimate_ID__c, Order_Detail__c, Web_Order_Number__c, CloseDate, StageName, Estimate_Date__c, Estimate_Expiration_Date__c, Memo__c, AccountId, Account.NS_ID__c, Email__c, (SELECT Id, Product2.NS_ID__c, Description, Quantity FROM OpportunityLineItems) FROM Opportunity WHERE Id IN: recordIds]){
             if(oppRecord.AccountId != null && oppRecord.Account.NS_ID__c != null){
                 if(oppRecord.OpportunityLineItems != null && !oppRecord.OpportunityLineItems.isEmpty()){
                     orderDetail = null;
                     for(NetsuiteOpp__c orderDetailValue : customSettingMap.get('orderdetail')) if(orderDetailValue.Value__c == oppRecord.Order_Detail__c) orderDetail = orderDetailValue.ID__c;
-                    String xmlBody = 
+                    xmlBody = 
                         '<update>' +
                         '	<platformMsgs:record internalId="' + oppRecord.NS_Estimate_ID__c + '"  xsi:type="tranSales:Estimate" xmlns:tranSales="urn:sales_2020_1.transactions.webservices.netsuite.com">' + 
                         '		<tranSales:entity internalId="' + oppRecord.Account.NS_ID__c + '" xmlns:platformCore="urn:core_2020_1.platform.webservices.netsuite.com" />' + 
@@ -277,10 +362,11 @@ public class NetsuiteMethods {
         
         List<Opportunity> opportunityList = new List<Opportunity>();
         String orderDetail;
+        String xmlBody;
         for(Opportunity oppRecord : [SELECT Id, NS_Estimate_ID__c, Order_Detail__c, Web_Order_Number__c, CloseDate, StageName, Transaction_Date__c, Estimate_Expiration_Date__c, Memo__c, AccountId, Account.NS_ID__c, Email__c, (SELECT Id, Product2.NS_ID__c, Description, Quantity, NS_Price_Code__c, UnitPrice FROM OpportunityLineItems) FROM Opportunity WHERE Id IN: recordIds]){
             if(oppRecord.AccountId != null && oppRecord.Account.NS_ID__c != null){
                 if(oppRecord.OpportunityLineItems != null && !oppRecord.OpportunityLineItems.isEmpty()){
-                    String xmlBody = 
+                    xmlBody = 
                         '<add>' +
                         '	<platformMsgs:record xsi:type="tranSales:SalesOrder" xmlns:tranSales="urn:sales_2020_1.transactions.webservices.netsuite.com">' + 
                         '		<tranSales:entity internalId="' + oppRecord.Account.NS_ID__c + '" xmlns:platformCore="urn:core_2020_1.platform.webservices.netsuite.com" />' + 
@@ -362,6 +448,61 @@ public class NetsuiteMethods {
         }
         ApexUtil.isOpportunityTriggerInvoked = false;
         if(!opportunityList.isEmpty()) update opportunityList;
+    }
+    
+    @future(callout=true)
+	public static void createCustomer(Set<String> recordIds){
+        Map<String,Object> customSettingMap = new Map<String,Object>();
+        for(NetsuiteLead__c nl : NetsuiteLead__c.getall().values()) customSettingMap.put(nl.Name.trim().toLowerCase(),nl);
+        
+        List<Account> accountList = new List<Account>();
+        //String orderDetail;
+        String xmlBody;
+        HTTPResponse response;
+        String prefCcProcessorXML, entityStatusXML, typeCustomerXML, errorCode, errorString, errorSuccess;
+        for(Account accountRecord : [SELECT Id, Name, CC_Processor__c, Netsuite_Status__c, Type_of_Customer__c FROM Account WHERE Id IN: recordIds]){
+            prefCcProcessorXML = ApexUtil.getFieldSettingNetsuiteXML('customer',customSettingMap,accountRecord.CC_Processor__c, 'prefCCProcessor', 'listRel');
+            entityStatusXML = ApexUtil.getFieldSettingNetsuiteXML('customer',customSettingMap,accountRecord.Netsuite_Status__c, 'entityStatus', 'listRel');
+            typeCustomerXML = ApexUtil.getFieldSettingCustomSelectNetsuiteXML('customer',customSettingMap,accountRecord.Type_of_Customer__c, 'custentity_typeofcustomer', '44', '-186');
+            xmlBody = 
+                '<add>' +
+                '	<platformMsgs:record xsi:type="listRel:Customer" xmlns:listRel="urn:relationships_2020_1.lists.webservices.netsuite.com">' +
+                '		<listRel:companyName>' + accountRecord.Name + '</listRel:companyName>' +
+                prefCcProcessorXML +
+                entityStatusXML +
+                '		<listRel:customFieldList xmlns:platformCore="urn:core_2020_1.platform.webservices.netsuite.com">' +
+                typeCustomerXML + 
+                '		</listRel:customFieldList>' + 
+                '	</platformMsgs:record>' +
+                '</add>';
+            
+            response = NetsuiteConnection.postNetsuiteSoap('add',xmlBody);
+            errorCode = null;
+            errorString = null;
+            errorSuccess = null;
+            system.debug(response.getBody());
+            if(String.isNotBlank(response.getBody())){
+                errorCode =  response.getBody().substringBetween('<faultcode>', '</faultcode>');
+                errorString = response.getBody().substringBetween('<faultstring>', '</faultstring>');
+                errorSuccess = response.getBody().substringBetween('<platformCore:status isSuccess="', '"')=='false' ? response.getBody().substringBetween('<platformCore:message>', '</platformCore:message>') : null;
+            }
+            if(response.getStatusCode()==200 && errorCode==null && errorString==null && errorSuccess==null){
+                accountRecord.Netsuite_To_Sync__c = false;
+                accountRecord.Netsuite_Sync_Status__c = 'Synced';
+                accountRecord.Netsuite_Sync_Error__c = '';
+                accountRecord.NS_ID__c = response.getBody().subStringBetween('platformMsgs:baseRef internalId="','" type="customer"');
+            } else {
+                accountRecord.Netsuite_To_Sync__c = false;
+                accountRecord.Netsuite_Sync_Status__c = 'Error';
+                if(errorSuccess!=null)
+                    accountRecord.Netsuite_Sync_Error__c = errorSuccess.left(255);
+                else
+                    accountRecord.Netsuite_Sync_Error__c = (errorCode + '->' + errorString).left(255);
+            }
+            accountList.add(accountRecord);
+        }
+        ApexUtil.isAccountTriggerInvoked = false;
+        if(!accountList.isEmpty()) update accountList;
     }
     
     public static List<Dom.XmlNode> XmlParser(String strXml) {
