@@ -13,6 +13,7 @@ global class NetsuiteAddressbookParser {
     
     public class AddressBookDetail{
         public List<Link> links {get;set;}
+        public String id {get;set;}
         public String addressId {get;set;}
         public Boolean defaultBilling {get;set;}
         public Boolean defaultShipping {get;set;}
@@ -20,6 +21,7 @@ global class NetsuiteAddressbookParser {
     
     public class AddressBookAddress{
         public String addr1 {get;set;}
+        public String addr2 {get;set;}
         public String addressee {get;set;}
         public String addrPhone {get;set;}
         public String city {get;set;}

@@ -177,7 +177,7 @@ public class NetsuiteConnection {
         return response;
     }*/
     
-    public static HttpResponse postNetsuiteSoap(String action, String bodyXML){
+    public static HttpResponse postNetsuiteSoap(String action, String bodyXML, Boolean scriptActive){
         Http http = new Http();
         HTTPResponse response;
         HttpRequest request = new HttpRequest();
@@ -196,10 +196,8 @@ public class NetsuiteConnection {
             				'		<platformCore:nonce>' + nonce + '</platformCore:nonce>' + 
             				'		<platformCore:timestamp>' + timestamp + '</platformCore:timestamp>' + 
             				'		<platformCore:signature algorithm="HMAC-SHA256">' + EncodingUtil.base64Encode(signature) + '</platformCore:signature>' + 
-            				'   </platformMsgs:tokenPassport>' + 
-            				//'	<preferences>' +
-         					//'		<runServerSuiteScriptAndTriggerWorkflows>false</runServerSuiteScriptAndTriggerWorkflows>' +
-      						//'</preferences>' +
+            				'   </platformMsgs:tokenPassport>' +
+            				(scriptActive ? '' : '<preferences><runServerSuiteScriptAndTriggerWorkflows>false</runServerSuiteScriptAndTriggerWorkflows></preferences>') +
             				'</soapenv:Header>' + 
             				'<soapenv:Body>' + 
             					bodyXML + 

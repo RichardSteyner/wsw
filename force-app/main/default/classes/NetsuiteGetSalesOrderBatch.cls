@@ -32,107 +32,200 @@ global class NetsuiteGetSalesOrderBatch implements Database.Batchable<String>, D
         Account objAccount;
         Map<String, Opportunity> opps = new Map<String, Opportunity>();
         Map<String, Account> accounts = new Map<String, Account>();
-        Map<String, Id> userIds = new Map<String, Id>();
         Map<String,NetsuiteOpp__c> customOppMap = new Map<String,NetsuiteOpp__c>();
         Map<String,Product2> productMap = new Map<String,Product2>();
         Map<String,OpportunityLineItem> olisMap = new Map<String,OpportunityLineItem>();
-    	for(String auxId : scope){
-        	try{
-                jsonResponse = NetsuiteConnection.getNetsuiteObject('salesOrder/' + auxId, '');
-                if(jsonResponse!=null){
-                    nsSales = (NetsuiteSalesOrderParser) json.deserialize(jsonResponse, NetsuiteSalesOrderParser.class);
-                    System.debug('-----------SALES ORDER------------');
-                    System.debug(auxId);
-                    
-                    objOpp = new Opportunity(NS_ID__c=auxId, Name=auxId, Balance__c=nsSales.balance, Web_Order_Number__c=nsSales.getWebOrderNumber(),
-                                             Order__c=nsSales.custbody5, Warehouse_Notes__c=nsSales.getWarehouseNotes(), Art_file_by_email__c=nsSales.custbody_artfile_by_email,
-                                             Email__c=nsSales.email, Discount_Total__c=nsSales.discountTotal, Customer_NS_ID__c=nsSales.getEntityId(),
-                                             Ship_Date__c=nsSales.shipDate, Shipping_Cost__c=nsSales.shippingCost,
-                                             Netsuite_Status__c=nsSales.status, Subtotal__c=nsSales.subtotal, Tax_Total__c=nsSales.taxTotal,
-                                             Transaction_Date__c=nsSales.trandate, Document_Number__c=nsSales.tranId, CloseDate=nsSales.trandate,
-                                             Graphics_Designer_NS_Id__c=nsSales.getCustbody3Id(), 
-                                             Order_processed_By_NS_ID__c=nsSales.getCustbody9Id(), 
-                                             Owner_NS_ID__c=nsSales.getSalesRepId());
-                    objOpp.Order_Detail__c = (nsSales.getOrderDetail() != null ? nsSales.getOrderDetail().subStringAfter('> ') : null);
-                    objOpp.StageName = (nsSales.getStage() != null ? nsSales.getStage().subStringAfter('> ') : null);
-                    objOpp.Ship_Method__c = (nsSales.getShipMethod() != null ? nsSales.getShipMethod().subStringAfter('> ') : null);
-                    objOpp.Total__c = nsSales.total;
-                    if(nsSales.getOrderDetail() != null){
-                        customOppMap.put(
-                            'orderdetail-'+nsSales.getOrderDetail().subStringBetween('<','>').trim().toLowerCase(),
-                            new NetsuiteOpp__c(Type__c = 'OrderDetail', Name = 'OrderDetail-'+nsSales.getOrderDetail().subStringBetween('<','>').trim().toLowerCase(), ID__c = nsSales.getOrderDetail().subStringBetween('<','>'),Value__c = nsSales.getOrderDetail().subStringAfter('> ').trim())
-                        );
-                    }
-                    if(nsSales.getStage() != null){
-                        customOppMap.put(
-                            'stage-'+nsSales.getStage().subStringBetween('<','>').trim().toLowerCase(),
-                            new NetsuiteOpp__c(Type__c = 'Stage', Name = 'stage-'+nsSales.getStage().subStringBetween('<','>').trim().toLowerCase(), ID__c = nsSales.getStage().subStringBetween('<','>'),Value__c = nsSales.getStage().subStringAfter('> ').trim())
-                        );
-                    }
-                    if(nsSales.getShipMethod() != null){
-                        customOppMap.put(
-                            'shipmethod-'+nsSales.getShipMethod().subStringBetween('<','>').trim().toLowerCase(),
-                            new NetsuiteOpp__c(Type__c = 'ShipMethod', Name = 'shipmethod-'+nsSales.getShipMethod().subStringBetween('<','>').trim().toLowerCase(), ID__c = nsSales.getShipMethod().subStringBetween('<','>'),Value__c = nsSales.getShipMethod().subStringAfter('> ').trim())
-                        );
-                    }
-                    
-                    opps.put(auxId, objOpp);
-                    
-                    if(nsSales.getEntityId()!=null){
-                        objAccount = new Account(NS_ID__c=nsSales.getEntityId(), Name=nsSales.entity.refName);
-                        auxAccountIds.add(nsSales.getEntityId());
-                        accounts.put(nsSales.getEntityId(), objAccount);
-                    }
-                    if(nsSales.getCustbody3Id()!=null) userIds.put(nsSales.getCustbody3Id(), null);
-                    if(nsSales.getCustbody9Id()!=null) userIds.put(nsSales.getCustbody9Id(), null);
-                    if(nsSales.getSalesRepId()!=null) userIds.put(nsSales.getSalesRepId(), null);
-                    
-                    //OLIS
-                    if(nsSales.item != null && nsSales.item.links != null){
-                        for(NetsuiteSalesOrderParser.Link sLink : nsSales.item.links){
-                            if(sLink.href != null){
-                                jsonResponse = NetsuiteConnection.getNetsuiteObject(sLink.href.substringAfter('/v1/') , '');
-                                if(jsonResponse!=null){
-                                    nsRelatedList = (NetsuiteSalesOrderParser.RelatedList) json.deserialize(jsonResponse, NetsuiteSalesOrderParser.RelatedList.class);
-                                    if(nsRelatedList.items != null){
-                                        for(NetsuiteSalesOrderParser.ItemLink itemlink : nsRelatedList.items){
-                                            if(itemlink.links != null){
-                                                for(NetsuiteSalesOrderParser.Link linkDetail : itemlink.links){
-                                                    if(linkDetail.href != null){
-                                                        jsonResponse = NetsuiteConnection.getNetsuiteObject(linkDetail.href.substringAfter('/v1/') , '');
-                                                        if(jsonResponse!=null){
-                                                            nsItemDetail = (NetsuiteSalesOrderParser.ItemDetail) json.deserialize(jsonResponse, NetsuiteSalesOrderParser.ItemDetail.class);
-                                                            if(nsItemDetail != null && nsItemDetail.item.id != null && nsItemDetail.item.refName != null && nsItemDetail.quantity != null && nsItemDetail.quantity != 0 && nsItemDetail.rate != null){
-                                                                //Product2
-                                                                productMap.put(nsItemDetail.item.id,new Product2(NS_ID__c = nsItemDetail.item.id, Name = nsItemDetail.item.refName, isActive = true));
-                                                                //OpportunityLineItem
-                                                                olisMap.put(nsItemDetail.id, new OpportunityLineItem(
-                                                                    NS_ID__c = nsItemDetail.id,
-                                                                    Opportunity = new Opportunity(NS_ID__c = objOpp.NS_ID__c),
-                                                                    Quantity = nsItemDetail.quantity,
-                                                                    UnitPrice = nsItemDetail.rate != null ? nsItemDetail.rate : 0,
-                                                                    Item_ID__c = nsItemDetail.item.id,
-                                                                    Quantity_Available__c = nsItemDetail.quantityAvailable,
-                                                                    Brand__c = nsItemDetail.custcol_item_brand != null ? nsItemDetail.custcol_item_brand.refName : null
-                                                                ));
+        String xmlBody, errorCode, errorString, errorSuccess;
+        HTTPResponse response;
+        Opportunity oppRecord;
+        OpportunityLineItem oliRecord;
+        for(String auxId : scope){
+            //jsonResponse = NetsuiteConnection.getNetsuiteObject('salesOrder/' + auxId, '');
+            xmlBody = '<get><baseRef internalId="' + auxId + '" type="salesOrder" xsi:type="platformCore:RecordRef"/></get>';
+            response = NetsuiteConnection.postNetsuiteSoap('get',xmlBody,true);
+            if(response != null && response.getStatusCode() == 200){
+                if(String.isNotBlank(response.getBody())){
+                    errorCode =  response.getBody().substringBetween('<faultcode>', '</faultcode>');
+                    errorString = response.getBody().substringBetween('<faultstring>', '</faultstring>');
+                    errorSuccess = response.getBody().substringBetween('<platformCore:status isSuccess="', '"') == 'false' ? response.getBody().substringBetween('<platformCore:message>', '</platformCore:message>') : null;
+                }
+                if(errorCode == null && errorString == null && errorSuccess == null){
+                    List<Dom.XmlNode> salesXML = NetsuiteMethods.XmlParser(response.getBody());
+                    for(Dom.XmlNode childElement1 : salesXML){
+                        if(childElement1.getName() == 'Body'){
+                            for(Dom.XmlNode childElement2 : childElement1.getChildElements()){
+                                for(Dom.XmlNode childElement3 : childElement2.getChildElements()){
+                                    for(Dom.XmlNode childElement4 : childElement3.getChildElements()){
+                                        if(childElement4.getName() == 'record'){
+                                            oppRecord = new Opportunity(NS_ID__c = auxId);
+                                            oppRecord.PO__c = null;
+                                            oppRecord.Memo__c = null;
+                                            oppRecord.Ship_Date__c = null;
+                                            oppRecord.Partner__c = null;
+                                            oppRecord.Tracking__c = null;
+                                            oppRecord.Ship_Method__c = null;
+                                            oppRecord.In_Han_Date__c = null;
+                                            oppRecord.Blind_Ship__c = null;
+                                            oppRecord.Order_Detail__c = null;
+                                            oppRecord.Ozlink__c = null;
+                                            for(Dom.XmlNode childElement5 : childElement4.getChildElements()){
+                                                if(childElement5.getName() == 'tranId') oppRecord.Name = childElement5.getText();
+                                                if(childElement5.getName() == 'tranDate') oppRecord.CloseDate = Date.valueOf(childElement5.getText().split('T')[0]);
+                                                if(childElement5.getName() == 'entity'){
+                                                    objAccount = new Account(NS_ID__c = childElement5.getAttribute('internalId',null));
+                                                    oppRecord.Customer_NS_ID__c = objAccount.NS_ID__c;
+                                                    auxAccountIds.add(childElement5.getAttribute('internalId',null));
+                                                    for(Dom.XmlNode childElement6 : childElement5.getChildElements()){
+                                                        if(childElement6.getName() == 'name'){
+                                                            objAccount.Name = childElement6.getText();
+                                                            accounts.put(objAccount.NS_ID__c, objAccount);
+                                                        }
+                                                    }
+                                                }
+                                                if(childElement5.getName() == 'partner'){
+                                                    for(Dom.XmlNode childElement6 : childElement5.getChildElements()){
+                                                        if(childElement6.getName() == 'name'){
+                                                            oppRecord.Partner__c = childElement6.getText();
+                                                            customOppMap.put(
+                                                                'partner-'+childElement5.getAttribute('internalId',null),
+                                                                new NetsuiteOpp__c(Type__c = 'Partner', Name = 'partner-'+childElement5.getAttribute('internalId',null), ID__c = childElement5.getAttribute('internalId',null),Value__c = childElement6.getText())
+                                                            );
+                                                        }
+                                                    }
+                                                }
+                                                if(childElement5.getName() == 'otherRefNum') oppRecord.PO__c = childElement5.getText();
+                                                if(childElement5.getName() == 'endDate') oppRecord.In_Han_Date__c = childElement5.getText() != null ? Date.valueOf(childElement5.getText().split('T')[0]) : null;
+                                                if(childElement5.getName() == 'shipAddressList') oppRecord.Shipping_Address_Code__c = childElement5.getAttribute('internalId',null);
+                                                if(childElement5.getName() == 'memo') oppRecord.Memo__c = childElement5.getText();
+                                                if(childElement5.getName() == 'shipDate') oppRecord.Ship_Date__c = childElement5.getText() != null ? Date.valueOf(childElement5.getText().split('T')[0]) : null;
+                                                if(childElement5.getName() == 'shippingCost') oppRecord.Shipping_Cost__c = childElement5.getText() != null ? Decimal.valueOf(childElement5.getText()) : null;
+                                                if(childElement5.getName() == 'linkedTrackingNumbers') oppRecord.Tracking__c = childElement5.getText();
+                                                if(childElement5.getName() == 'shipMethod'){
+                                                    for(Dom.XmlNode customField : childElement5.getChildElements()){
+                                                        if(customField.getName() == 'name') oppRecord.Ship_Method__c = customField.getText();
+                                                    }
+                                                }
+                                                if(childElement5.getName() == 'subTotal') oppRecord.Subtotal__c = Decimal.valueOf(childElement5.getText());
+                                                if(childElement5.getName() == 'discountTotal') oppRecord.Discount_Total__c = Decimal.valueOf(childElement5.getText());
+                                                if(childElement5.getName() == 'taxTotal') oppRecord.Tax_Total__c = Decimal.valueOf(childElement5.getText());
+                                                if(childElement5.getName() == 'total') oppRecord.Total__c = Decimal.valueOf(childElement5.getText());
+                                                if(childElement5.getName() == 'customFieldList'){
+                                                    for(Dom.XmlNode customField : childElement5.getChildElements()){
+                                                        if(customField.getAttribute('internalId',null) == '64' && customField.getAttribute('scriptId',null) == 'custbody8'){
+                                                            for(Dom.XmlNode customFieldValue : customField.getChildElements()){
+                                                                if(customFieldValue.getName() == 'value') oppRecord.Warehouse_Notes__c = customFieldValue.getText();
                                                             }
                                                         }
-                                                        break;
+                                                        if(customField.getAttribute('internalId',null) == '4552' && customField.getAttribute('scriptId',null) == 'custbody93'){
+                                                            for(Dom.XmlNode customFieldValue : customField.getChildElements()){
+                                                                if(customFieldValue.getName() == 'value') oppRecord.Customer_Service_Note__c = customFieldValue.getText();
+                                                            }
+                                                        }
+                                                        if(customField.getAttribute('internalId',null) == '6720' && customField.getAttribute('scriptId',null) == 'custbody107'){
+                                                            for(Dom.XmlNode customFieldValue : customField.getChildElements()){
+                                                                if(customFieldValue.getName() == 'value') oppRecord.Did_I_Offer_A_Free_Sample__c = Boolean.valueOf(customFieldValue.getText());
+                                                            }
+                                                        }
+                                                        if(customField.getAttribute('internalId',null) == '4580' && customField.getAttribute('scriptId',null) == 'custbody_proofsheetfinishing'){
+                                                            for(Dom.XmlNode customFieldValue : customField.getChildElements()){
+                                                                if(customFieldValue.getName() == 'value') oppRecord.Proofsheet_Finishing_Notes__c = customFieldValue.getText();
+                                                            }
+                                                        }
+                                                        if(customField.getAttribute('internalId',null) == '2149' && customField.getAttribute('scriptId',null) == 'custbody_artfile_by_email'){
+                                                            for(Dom.XmlNode customFieldValue : customField.getChildElements()){
+                                                                if(customFieldValue.getName() == 'value') oppRecord.Art_file_by_email__c = Boolean.valueOf(customFieldValue.getText());
+                                                            }
+                                                        }
+                                                        if(customField.getAttribute('internalId',null) == '5922' && customField.getAttribute('scriptId',null) == 'custbody_art_file_exemption'){
+                                                            for(Dom.XmlNode customFieldValue : customField.getChildElements()){
+                                                                if(customFieldValue.getName() == 'value') oppRecord.Use_Art_Files_from_other_orders__c = Boolean.valueOf(customFieldValue.getText());
+                                                            }
+                                                        }
+                                                        if(customField.getAttribute('internalId',null) == '66' && customField.getAttribute('scriptId',null) == 'custbody10'){
+                                                            for(Dom.XmlNode customFieldValue : customField.getChildElements()){
+                                                                if(customFieldValue.getName() == 'value') oppRecord.Web_Order_Number__c = customFieldValue.getText();
+                                                            }
+                                                        }
+                                                        if(customField.getAttribute('internalId',null) == '76' && customField.getAttribute('scriptId',null) == 'custbody13'){
+                                                            for(Dom.XmlNode customFieldValue : customField.getChildElements()){
+                                                                if(customFieldValue.getName() == 'value') oppRecord.Blind_Ship__c = Boolean.valueOf(customFieldValue.getText());
+                                                            }
+                                                        }
+                                                        if(customField.getAttribute('internalId',null) == '116' && customField.getAttribute('scriptId',null) == 'custbody17'){
+                                                            for(Dom.XmlNode customFieldValue : customField.getChildElements()){
+                                                                if(customFieldValue.getName() == 'value') oppRecord.Ozlink__c = Boolean.valueOf(customFieldValue.getText());
+                                                            }
+                                                        }
+                                                        if(customField.getAttribute('internalId',null) == '70' && customField.getAttribute('scriptId',null) == 'custbody11'){
+                                                            for(Dom.XmlNode customFieldValue : customField.getChildElements()){
+                                                                if(customFieldValue.getName() == 'value'){
+                                                                    for(Dom.XmlNode customFieldName : customFieldValue.getChildElements()){
+                                                                        if(customFieldName.getName() == 'name'){
+                                                                            oppRecord.Order_Detail__c = customFieldName.getText();
+                                                                            customOppMap.put(
+                                                                                'orderdetail-'+customFieldValue.getAttribute('internalId',null),
+                                                                                new NetsuiteOpp__c(Type__c = 'OrderDetail', Name = 'OrderDetail-'+customFieldValue.getAttribute('internalId',null), ID__c = customFieldValue.getAttribute('internalId',null),Value__c = customFieldName.getText())
+                                                                            );
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                        if(customField.getAttribute('internalId',null) == '45' && customField.getAttribute('scriptId',null) == 'custbody_orderstatus'){
+                                                            for(Dom.XmlNode customFieldValue : customField.getChildElements()){
+                                                                if(customFieldValue.getName() == 'value'){
+                                                                    for(Dom.XmlNode customFieldName : customFieldValue.getChildElements()){
+                                                                        if(customFieldName.getName() == 'name'){
+                                                                            oppRecord.StageName = customFieldName.getText();
+                                                                            customOppMap.put(
+                                                                                'stage-'+customFieldValue.getAttribute('internalId',null),
+                                                                                new NetsuiteOpp__c(Type__c = 'Stage', Name = 'stage-'+customFieldValue.getAttribute('internalId',null), ID__c = customFieldValue.getAttribute('internalId',null),Value__c = customFieldName.getText())
+                                                                            );
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                if(childElement5.getName() == 'itemList'){
+                                                    for(Dom.XmlNode item : childElement5.getChildElements()){
+                                                        oliRecord = new OpportunityLineItem(Opportunity = new Opportunity(NS_ID__c = auxId));
+                                                        oliRecord.Sales_ID__c = auxId;
+                                                        for(Dom.XmlNode itemData : item.getChildElements()){
+                                                            if(itemData.getName() == 'item'){
+                                                                oliRecord.Item_ID__c = itemData.getAttribute('internalId',null);
+                                                                for(Dom.XmlNode itemDataDetail : itemData.getChildElements()){
+                                                                    if(itemDataDetail.getName() == 'name'){
+                                                                        productMap.put(itemData.getAttribute('internalId',null),new Product2(Name = itemDataDetail.getText(),isActive = true,NS_ID__c = itemData.getAttribute('internalId',null)));
+                                                                    }
+                                                                }
+                                                            }
+                                                            if(itemData.getName() == 'lineUniqueKey') oliRecord.NS_ID__c = itemData.getText();
+                                                            if(itemData.getName() == 'quantity') oliRecord.Quantity = Decimal.valueOf(itemData.getText());
+                                                            if(itemData.getName() == 'rate') oliRecord.UnitPrice = Decimal.valueOf(itemData.getText());
+                                                            if(itemData.getName() == 'price'){
+                                                                oliRecord.NS_Price_Code__c = itemData.getAttribute('internalId',null);
+                                                                for(Dom.XmlNode itemDataDetail : itemData.getChildElements()){
+                                                                    if(itemDataDetail.getName() == 'name'){
+                                                                        oliRecord.Price_Level__c = itemDataDetail.getText();
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                        olisMap.put(oliRecord.NS_ID__c,oliRecord);
                                                     }
                                                 }
                                             }
+                                            opps.put(auxId,oppRecord);
                                         }
                                     }
                                 }
                             }
-                            break;
                         }
                     }
-                }else
-                    System.debug('NetsuiteGetSalesOrderBatch -> Response null or responseCode not 200.!');
-           	}catch(Exception e){
-            	System.debug('NetsuiteGetSalesOrderBatch Error Execute: ' + e.getLineNumber() + '--' + e.getMessage());
-        	}
+                }
+            }
         }
         
         //Custom Settings
@@ -150,34 +243,10 @@ global class NetsuiteGetSalesOrderBatch implements Database.Batchable<String>, D
                     System.debug('NetsuiteGetSalesOrderBatch - Account Upsert Error: ' + upsertError.getMessage());
             }
         }
-           
-        for(User u : [select Id, NS_ID__c from User where NS_ID__c in: userIds.keySet()]) userIds.put(u.NS_ID__c, u.Id);
-                
+        
 		for(Opportunity o : opps.values()){
-			if(o.Customer_NS_ID__c!=null)
-            {
-            	if(accounts.get(o.Customer_NS_ID__c)!=null && accounts.get(o.Customer_NS_ID__c).Id!=null) 
-                	o.AccountId=accounts.get(o.Customer_NS_ID__c).Id;
-                //else
-                    //System.debug('Cannot relate to account: ' + o.Customer_NS_ID__c);
-            }
-            if(o.Graphics_Designer_NS_Id__c!=null){
-                if(userIds.get(o.Graphics_Designer_NS_Id__c)!=null) 
-                	o.Graphics_Designer__c=userIds.get(o.Graphics_Designer_NS_Id__c);
-                //else
-                    //System.debug('Cannot relate to Graphics Designer: ' + o.Graphics_Designer_NS_Id__c);
-            }
-            if(o.Order_processed_By_NS_ID__c!=null){
-                if(userIds.get(o.Order_processed_By_NS_ID__c)!=null) 
-                	o.Order_processed_By__c=userIds.get(o.Order_processed_By_NS_ID__c);
-                //else
-                    //System.debug('Cannot relate to Order Processed By: ' + o.Order_processed_By_NS_ID__c);
-            }
-            if(o.Owner_NS_ID__c!=null){
-                if(userIds.get(o.Owner_NS_ID__c)!=null) 
-                	o.OwnerId=userIds.get(o.Owner_NS_ID__c);
-                //else
-                    //System.debug('Cannot relate to Owner: ' + o.Owner_NS_ID__c);
+			if(o.Customer_NS_ID__c!=null){
+            	if(accounts.get(o.Customer_NS_ID__c)!=null && accounts.get(o.Customer_NS_ID__c).Id!=null) o.AccountId=accounts.get(o.Customer_NS_ID__c).Id;
             }
         }
         
@@ -185,8 +254,7 @@ global class NetsuiteGetSalesOrderBatch implements Database.Batchable<String>, D
        	upsertResults = Database.upsert(opps.values(), Opportunity.NS_ID__c, false);
         for(Database.UpsertResult upsertResult:upsertResults){
         	if(!upsertResult.isSuccess()) {
-            	for(Database.Error upsertError : upsertResult.getErrors()) 
-                	System.debug('NetsuiteGetSalesOrderBatch - Opportunity Upsert Error: ' + upsertError.getMessage());
+            	for(Database.Error upsertError : upsertResult.getErrors()) System.debug('NetsuiteGetSalesOrderBatch - Opportunity Upsert Error: ' + upsertError.getMessage());
             }
      	}
         
@@ -230,11 +298,16 @@ global class NetsuiteGetSalesOrderBatch implements Database.Batchable<String>, D
         }
         
         if(!olisMap.isEmpty()){
-            List<OpportunityLineItem> olisData = [SELECT Id, NS_ID__c FROM OpportunityLineItem WHERE NS_ID__c IN: olisMap.keySet()];
+            Netsuite__c orgDefaults = Netsuite__c.getOrgDefaults();
+            Set<String> productsExceptions = new Set<String>();
+            for(String od : orgDefaults.Products_Exception__c.split(',')) productsExceptions.add(od);
+            
+            List<OpportunityLineItem> olisData = [SELECT Id, Opportunity.NS_ID__c, NS_ID__c, Item_ID__c, UnitPrice FROM OpportunityLineItem WHERE NS_ID__c IN: olisMap.keySet()];
             for(OpportunityLineItem oli : olisMap.values()){
                 for(OpportunityLineItem o : olisData){
-                    if(oli.NS_ID__c == o.NS_ID__c){
+                    if(oli.Item_ID__c == o.Item_ID__c && o.Opportunity.NS_ID__c == oli.Sales_ID__c){
                         oli.Id = o.Id;
+                        if(productsExceptions.contains(o.Item_ID__c)) oli.UnitPrice = o.UnitPrice;
                     }
                 }
                 if(oli.Id == null){
@@ -244,14 +317,19 @@ global class NetsuiteGetSalesOrderBatch implements Database.Batchable<String>, D
                         }
                     }
                 }
-            }           
-            upsert olisMap.values() NS_ID__c;
+            }
+            upsertResults = Database.upsert(olisMap.values(), OpportunityLineItem.Id, false);
+            for(Database.UpsertResult upsertResult:upsertResults){
+                if(!upsertResult.isSuccess()) {
+                    for(Database.Error upsertError : upsertResult.getErrors()) System.debug('NetsuiteGetSalesOrderBatch - OpportunityLineItem Upsert Error: ' + upsertError.getMessage());
+                }
+            }
         }
     }
     
     global void finish(Database.BatchableContext BC){
         System.debug('Finish NetsuiteGetSalesOrderBatch');
-        if(!Test.isRunningTest()) Database.executeBatch(new NetsuiteGetCustomersBatch(startDate, auxAccountIds), 10);
+        if(!Test.isRunningTest()) Database.executeBatch(new NetsuiteGetCustomersBatch(startDate, auxAccountIds), 1);
     }
     
 }

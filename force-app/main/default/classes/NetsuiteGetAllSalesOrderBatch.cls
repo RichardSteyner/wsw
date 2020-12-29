@@ -95,10 +95,10 @@ global class NetsuiteGetAllSalesOrderBatch implements Database.Batchable<String>
                     System.debug('Cannot relate to account: ' + o.Customer_NS_ID__c);
             }
             if(o.Graphics_Designer_NS_Id__c!=null){
-                if(userIds.get(o.Graphics_Designer_NS_Id__c)!=null) 
-                	o.Graphics_Designer__c=userIds.get(o.Graphics_Designer_NS_Id__c);
-                else
-                    System.debug('Cannot relate to Graphics Designer: ' + o.Graphics_Designer_NS_Id__c);
+                //if(userIds.get(o.Graphics_Designer_NS_Id__c)!=null) 
+                	//o.Graphics_Designer__c=userIds.get(o.Graphics_Designer_NS_Id__c);
+                //else
+                //    System.debug('Cannot relate to Graphics Designer: ' + o.Graphics_Designer_NS_Id__c);
             }
             if(o.Order_processed_By_NS_ID__c!=null){
                 if(userIds.get(o.Order_processed_By_NS_ID__c)!=null) 

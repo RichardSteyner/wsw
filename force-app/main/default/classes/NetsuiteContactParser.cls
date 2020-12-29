@@ -12,6 +12,13 @@ global class NetsuiteContactParser {
     public String phone {get; set;}
     public Company company {get; set;}
     public Address addressbook {get;set;}
+    public String salutation {get;set;}
+    public String title {get;set;}
+    public String fax {get;set;}
+    public String mobilePhone {get;set;}
+    public String officePhone {get;set;}
+    public String homePhone {get;set;}
+    public String altEmail {get;set;}
     
     public class Address{
         public List<Link> links {get;set;}

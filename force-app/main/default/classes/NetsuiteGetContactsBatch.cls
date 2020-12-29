@@ -36,80 +36,48 @@ global class NetsuiteGetContactsBatch implements Database.Batchable<String>, Dat
             jsonResponse = NetsuiteConnection.getNetsuiteObject('contact/' + auxId, '');
             if(jsonResponse!=null){
                 nsContact = (NetsuiteContactParser) json.deserialize(jsonResponse, NetsuiteContactParser.class);
-                System.debug('-----------CONTACT------------');
-                System.debug(nsContact);
-                objContact = new Contact(NS_ID__c=auxId,Company_Id__c=nsContact.getCompanyId(),Phone=nsContact.phone,Inactive__c=nsContact.isinactive,Global_Subscription_Status__c=ApexUtil.globalSubscriptionStatusContact.get(nsContact.globalsubscriptionstatus));
-                objContact.LastName = (nsContact.entityId != null ? (nsContact.entityId.indexOf(' ') > 0 ? nsContact.entityId.subStringAfter(' ') : nsContact.entityId)  : nsContact.lastName);
-                objContact.FirstName = (nsContact.entityId != null ? (nsContact.entityId.indexOf(' ') > 0 ? nsContact.entityId.subStringBefore(' ') : null)  : nsContact.firstName);
+                objContact = new Contact(NS_ID__c=auxId);
+                objContact.Customer_ID__c = (nsContact.company != null ? nsContact.company.id : null);
+                objContact.LastName = nsContact.lastName;
+                objContact.FirstName = nsContact.firstName;
+                objContact.Salutation = nsContact.salutation;
+                objContact.Title = nsContact.title;
+                objContact.Phone = nsContact.phone;
+                objContact.Fax = nsContact.fax;
+                objContact.MobilePhone = nsContact.mobilePhone;
+                objContact.OtherPhone = nsContact.officePhone;
+                objContact.HomePhone = nsContact.homePhone;
+                if(nsContact.altEmail != null){
+                    MyPattern = Pattern.compile(emailRegex);
+                    MyMatcher = MyPattern.matcher(nsContact.altEmail);
+                    if(MyMatcher.matches()) objContact.Alt_Email__c = nsContact.altEmail;
+                }
                 if(nsContact.email != null){
                     MyPattern = Pattern.compile(emailRegex);
                     MyMatcher = MyPattern.matcher(nsContact.email);
                     if(MyMatcher.matches()) objContact.Email = nsContact.email;
                 }
-                if(nsContact.addressbook != null && nsContact.addressbook.links != null){
-                    for(NetsuiteContactParser.Link alink : nsContact.addressbook.links){
-                        if(alink.href != null){
-                            jsonResponse = NetsuiteConnection.getNetsuiteObject(alink.href.substringAfter('/v1/') , '');
-                            if(jsonResponse!=null){
-                                nsAddressbook = (NetsuiteAddressbookParser) json.deserialize(jsonResponse, NetsuiteAddressbookParser.class);
-                                if(nsAddressbook != null && nsAddressbook.items != null){
-                                    for(NetsuiteAddressbookParser.Item item : nsAddressbook.items){
-                                        for(NetsuiteAddressbookParser.Link ablink : item.links){
-                                            if(ablink.href != null){
-                                                system.debug(ablink.href.substringAfter('/v1/'));
-                                                jsonResponse = NetsuiteConnection.getNetsuiteObject(ablink.href.substringAfter('/v1/') , '');
-                                                if(jsonResponse!=null){
-                                                    nsAddressbookDetail = (NetsuiteAddressbookParser.AddressBookDetail) json.deserialize(jsonResponse, NetsuiteAddressbookParser.AddressBookDetail.class);
-                                                    if(nsAddressbookDetail != null && nsAddressbookDetail.defaultBilling != null && nsAddressbookDetail.defaultBilling == true){
-                                                        jsonResponse = NetsuiteConnection.getNetsuiteObject(ablink.href.substringAfter('/v1/') + '/addressbookaddress' , '');
-                                                        if(jsonResponse!=null){
-                                                            nsAddressbooAddress = (NetsuiteAddressbookParser.AddressBookAddress) json.deserialize(jsonResponse, NetsuiteAddressbookParser.AddressBookAddress.class);
-                                                            objContact.MailingStreet = (nsAddressbooAddress.addr1 != null ? nsAddressbooAddress.addr1 : null);
-                                                            objContact.Addressee__c = (nsAddressbooAddress.addressee != null ? nsAddressbooAddress.addressee : null);
-                                                            objContact.MailingCity = nsAddressbooAddress.city;
-                                                            objContact.MailingState = nsAddressbooAddress.state;
-                                                            objContact.MailingCountry = nsAddressbooAddress.country;
-                                                            objContact.Country_Code__c = nsAddressbooAddress.country;
-                                                            objContact.MailingPostalCode = nsAddressbooAddress.zip;
-                                                            objContact.Address_Phone__c = nsAddressbooAddress.addrPhone;
-                                                        }
-                                                        break;
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        break;
-                                    }
-                                }
-                            }
-                            break;
-                        }
-                    }
-                }
-                if(objContact.LastName != null){
-                    if(nsContact.getCompanyId() != null) companyAccounts.put(nsContact.getCompanyId(), null);
-                  
-                    if(nsContact.owner!=null){
-                        objContact.Owner_NS_ID__c=String.valueOf(nsContact.owner); 
-                        userIds.put(String.valueOf(nsContact.owner), null);
-                    }
-                    contacts.put(auxId, objContact);
-                }
+                if(objContact.LastName != null && objContact.LastName.trim() != '') contacts.put(auxId, objContact);
             }
         }
 
         if(!contacts.isEmpty()){
-            for(User u : [select Id, NS_ID__c from User where NS_ID__c in: userIds.keySet()]) userIds.put(u.NS_ID__c, u.Id);
+            Set<String> customerIds = new Set<String>();
+            for(Contact c : contacts.values()) if(c.Customer_ID__c != null) customerIds.add(c.Customer_ID__c);
             
-            for(Account a : [select Id, NS_ID__c from Account where NS_ID__c in: companyAccounts.keySet()]) companyAccounts.put(a.NS_ID__c, a.Id);
+            Map<String,Account> customerMap = new Map<String,Account>();
+            for(Account a : [SELECT Id, NS_ID__c from Account WHERE NS_ID__c IN: customerIds]) customerMap.put(a.NS_ID__c, a);
             
+            List<Contact> contactUpsert = new List<Contact>();
             for(Contact c : contacts.values()){
-                if(c.Company_Id__c!=null && companyAccounts.get(c.Company_Id__c) != null) c.AccountId = companyAccounts.get(c.Company_Id__c);
-                if(c.Owner_NS_ID__c!=null && userIds.get(c.Owner_NS_ID__c) != null) c.OwnerId=userIds.get(c.Owner_NS_ID__c);
+                if(c.Customer_ID__c!=null && customerMap.get(c.Customer_ID__c) != null){
+                    c.AccountId = customerMap.get(c.Customer_ID__c).Id;
+                    contactUpsert.add(c);
+                }
             }
             
             ApexUtil.isContactTriggerInvoked = false;        
-            List<Database.UpsertResult> upsertResults = Database.upsert(contacts.values(), Contact.NS_ID__c, false);
+            List<Database.UpsertResult> upsertResults = Database.upsert(contactUpsert, Contact.NS_ID__c, false);
             for(Database.UpsertResult upsertResult:upsertResults){
                 if(!upsertResult.isSuccess()) {
                     for(Database.Error upsertError : upsertResult.getErrors()) System.debug('NetsuiteGetContactsBatch - Contact Upsert Error: ' + upsertError.getMessage());

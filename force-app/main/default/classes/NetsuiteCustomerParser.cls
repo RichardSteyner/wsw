@@ -24,6 +24,59 @@ global class NetsuiteCustomerParser {
     public String custentity_ozlink_website {get; set;}//
     public String id {get; set;}
     public ContactZ contact {get;set;}
+    public AssociationCustomer custentity2 {get;set;}
+    public Partner partner {get;set;}
+    public String custentitysalesordernotes {get;set;}
+    public String altPhone {get;set;}
+    public String fax {get;set;}
+    public String email {get;set;}
+    public String custentity_invoice_email {get;set;}
+    public String custentity_order_conf_email {get;set;}
+    public Decimal custentity_esc_annual_revenue {get;set;}
+    public DataField custentity_ws_accnt_aprvl_prcs {get;set;}
+    public String custentity25 {get;set;}
+    public Boolean custentity9 {get;set;}
+    public Decimal creditLimit {get;set;}
+    public DataField terms {get;set;}
+    public String vatRegNumber {get;set;}
+    public DataField taxItem {get;set;}
+    public String resaleNumber {get;set;}
+    public String custentity_resale_cert_newuser {get;set;}
+    public DataField custentitycustentity_certificate_app_by {get;set;}
+    public DataField custentity45 {get;set;}
+    public DataField custentitylead_survey {get;set;}
+    public DataField custentitylead_survey_tradeshow_value {get;set;}
+    public AddressBook addressBook {get;set;}
+    
+    public class AddressBook{
+        public List<Link> links {get;set;}
+    }
+    
+    public class DataField {
+        public List<Link> links {get;set;}
+        public String id {get;set;}
+        public String refName {get;set;}
+    }
+    
+    public class Partner{
+        public List<Link> links {get;set;}
+        public String id {get;set;}
+        public String refName {get;set;}
+    }
+    
+    public class Association{
+        public List<AssocItem> items {get;set;}
+    }
+    
+    public class AssocItem{
+        public List<Link> links {get;set;}
+        public String id {get;set;}
+        public String refName {get;set;}
+    }
+    
+    public class AssociationCustomer{
+        public List<Link> links {get;set;}
+    }
     
     public class ContactZ{
         public List<Link> links {get;set;}
@@ -72,7 +125,7 @@ global class NetsuiteCustomerParser {
         public String refName {get; set;}
     }
     
-    class SalesRep {
+    public class SalesRep {
         public List<Link> links {get; set;}
         public String id {get; set;}
         public String refName {get; set;}
