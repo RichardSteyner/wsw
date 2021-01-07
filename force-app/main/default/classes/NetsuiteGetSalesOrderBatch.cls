@@ -24,9 +24,6 @@ global class NetsuiteGetSalesOrderBatch implements Database.Batchable<String>, D
     }
     
     global void execute(Database.BatchableContext BC, List<String> scope){
-        NetsuiteSalesOrderParser nsSales;
-        NetsuiteSalesOrderParser.RelatedList nsRelatedList;
-        NetsuiteSalesOrderParser.ItemDetail nsItemDetail;
         String jsonResponse;
         Opportunity objOpp;
         Account objAccount;
@@ -244,7 +241,14 @@ global class NetsuiteGetSalesOrderBatch implements Database.Batchable<String>, D
             }
         }
         
+        Set<String> oppIds = new Set<String>();
+        for(Opportunity o : opps.values()) oppIds.add(o.NS_ID__c);
+        
+        Map<String,Opportunity> oppExistMap = new Map<String,Opportunity>();
+        for(Opportunity o : [SELECT Id, NS_ID__c, Name FROM Opportunity WHERE NS_ID__c IN: oppIds]) oppExistMap.put(o.NS_ID__c,o);
+        
 		for(Opportunity o : opps.values()){
+            if(oppExistMap.get(o.NS_ID__c) != null) o.Name = oppExistMap.get(o.NS_ID__c).Name;
 			if(o.Customer_NS_ID__c!=null){
             	if(accounts.get(o.Customer_NS_ID__c)!=null && accounts.get(o.Customer_NS_ID__c).Id!=null) o.AccountId=accounts.get(o.Customer_NS_ID__c).Id;
             }

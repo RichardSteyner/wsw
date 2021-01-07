@@ -1,6 +1,6 @@
 trigger LeadTrigger on Lead (before insert, before update, after insert, after update) {
     
-    if(ApexUtil.isLeadTriggerInvoked){
+    /*if(ApexUtil.isLeadTriggerInvoked){
         if(trigger.isInsert){
             for(Lead lead : trigger.new){
             }
@@ -23,7 +23,7 @@ trigger LeadTrigger on Lead (before insert, before update, after insert, after u
                 }
             }
             else{
-    			/*Set<Id> leadIds = new Set<Id>();
+    			Set<Id> leadIds = new Set<Id>();
                 for(Lead lead : trigger.new){
                     if(lead.NS_ID__c!=null && lead.LastName != trigger.oldMap.get(lead.Id).LastName || lead.NumberOfEmployees != trigger.oldMap.get(lead.Id).NumberOfEmployees 
                         || lead.Taxable__c != trigger.oldMap.get(lead.Id).Taxable__c || lead.Web_Approved_CB__c != trigger.oldMap.get(lead.Id).Web_Approved_CB__c 
@@ -35,9 +35,9 @@ trigger LeadTrigger on Lead (before insert, before update, after insert, after u
                             System.debug('LeadTrigger->Aquí enviaremos a Netsuite');
                         }
                 }
-                if(leadIds.size()>0) NetsuitePostCustomer.postCustomersFromLeads(leadIds);*/
+                if(leadIds.size()>0) NetsuitePostCustomer.postCustomersFromLeads(leadIds);
             }
         }
     }
-
+	*/
 }
